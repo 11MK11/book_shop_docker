@@ -1,0 +1,53 @@
+name: prod promotion deploy
+
+on:
+  push:
+    branches:
+      - prod
+
+env:
+  IMAGE_REF: ${{ vars.REGISTRY_NAME }}/${{ vars.IMAGE_NAME }}:${{ vars.IMAGE_VERSION }}
+  DEPLOY_DIR: /opt/book-shop/prod
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout prod
+        uses: actions/checkout@v4
+        with:
+          ref: prod
+
+      - name: Copy compose file to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.EC2_HOST }}
+          username: ${{ vars.EC2_USER || 'ubuntu' }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.yml,nginx/default.conf"
+          target: ${{ env.DEPLOY_DIR }}
+
+      - name: Deploy prod on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.EC2_HOST }}
+          username: ${{ vars.EC2_USER || 'ubuntu' }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd "${{ env.DEPLOY_DIR }}"
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+            docker pull "${{ env.IMAGE_REF }}"
+            cat > .env <<EOF
+            APP_IMAGE=${{ env.IMAGE_REF }}
+            APP_PORT=${{ vars.PROD_PORT || '8000' }}
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+            DEBUG=False
+            ALLOWED_HOSTS=${{ vars.ALLOWED_HOSTS || '*' }}
+            POSTGRES_DB=${{ vars.POSTGRES_DB || 'bookshop_prod' }}
+            POSTGRES_USER=${{ vars.POSTGRES_USER || 'bookshop' }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            EOF
+            docker compose -p bookshop-prod up -d

@@ -1,0 +1,9 @@
+.git
+.github
+.env
+db.sqlite3
+dist
+staticfiles
+__pycache__
+*.pyc
+artifacts/*.tmp

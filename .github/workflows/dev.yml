@@ -1,0 +1,80 @@
+name: dev artifact-first deploy
+
+on:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: write
+
+env:
+  ARTIFACT_FILE: artifacts/app-${{ github.sha }}.tar.gz
+  IMAGE_TAG: ${{ vars.REGISTRY_NAME }}/${{ vars.IMAGE_NAME }}:dev-${{ github.sha }}
+  DEPLOY_DIR: /opt/book-shop/dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build application artifact
+        env:
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          DEBUG: "False"
+          ALLOWED_HOSTS: "*"
+        run: bash scripts/build_artifact.sh "${{ github.sha }}" artifacts
+
+      - name: Commit artifact audit file
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Add dev artifact ${{ github.sha }}"
+          file_pattern: artifacts/app-${{ github.sha }}.tar.gz
+          branch: dev
+
+      - name: Build image from committed artifact
+        run: docker build --build-arg ARTIFACT_FILE="${ARTIFACT_FILE}" -t "${IMAGE_TAG}" .
+
+      - name: Save image for EC2
+        run: docker save "${IMAGE_TAG}" | gzip > bookshop-dev-image.tar.gz
+
+      - name: Copy deployment files to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.EC2_HOST }}
+          username: ${{ vars.EC2_USER || 'ubuntu' }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.yml,nginx/default.conf,bookshop-dev-image.tar.gz"
+          target: ${{ env.DEPLOY_DIR }}
+
+      - name: Deploy dev on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.EC2_HOST }}
+          username: ${{ vars.EC2_USER || 'ubuntu' }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd "${{ env.DEPLOY_DIR }}"
+            docker load < bookshop-dev-image.tar.gz
+            cat > .env <<EOF
+            APP_IMAGE=${{ env.IMAGE_TAG }}
+            APP_PORT=${{ vars.DEV_PORT || '8001' }}
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+            DEBUG=False
+            ALLOWED_HOSTS=${{ vars.ALLOWED_HOSTS || '*' }}
+            POSTGRES_DB=${{ vars.POSTGRES_DB || 'bookshop_dev' }}
+            POSTGRES_USER=${{ vars.POSTGRES_USER || 'bookshop' }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            EOF
+            docker compose -p bookshop-dev up -d
