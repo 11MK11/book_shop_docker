@@ -8,7 +8,7 @@ on:
 env:
   ARTIFACT_FILE: artifacts/app-${{ github.sha }}.tar.gz
   IMAGE_TAG: ${{ vars.REGISTRY_NAME }}/${{ vars.IMAGE_NAME }}:test-${{ github.sha }}
-  DEPLOY_DIR: /opt/book-shop/test
+  DEPLOY_DIR: /home/${{ vars.EC2_USER || 'ubuntu' }}/book-shop/test
 
 jobs:
   deploy:

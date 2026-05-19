@@ -13,7 +13,7 @@ permissions:
 env:
   ARTIFACT_FILE: artifacts/app-${{ github.sha }}.tar.gz
   IMAGE_TAG: ${{ vars.REGISTRY_NAME }}/${{ vars.IMAGE_NAME }}:dev-${{ github.sha }}
-  DEPLOY_DIR: /opt/book-shop/dev
+  DEPLOY_DIR: /home/${{ vars.EC2_USER || 'ubuntu' }}/book-shop/dev
 
 jobs:
   deploy:

@@ -7,7 +7,7 @@ on:
 
 env:
   IMAGE_REF: ${{ vars.REGISTRY_NAME }}/${{ vars.IMAGE_NAME }}:${{ vars.IMAGE_VERSION }}
-  DEPLOY_DIR: /opt/book-shop/prod
+  DEPLOY_DIR: /home/${{ vars.EC2_USER || 'ubuntu' }}/book-shop/prod
 
 jobs:
   deploy:

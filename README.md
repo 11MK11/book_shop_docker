@@ -43,7 +43,7 @@ All three branches deploy to the same EC2 instance, but they do not share compos
 - `test`: compose project `bookshop-test`, default host port `8002`, database volume owned by that project.
 - `prod`: compose project `bookshop-prod`, default host port `8000`, database volume owned by that project.
 
-The workflows copy the same `docker-compose.yml` and Nginx config to separate directories under `/opt/book-shop/` and generate branch-specific `.env` files on the server. This keeps container names, networks, volumes, image versions, and host ports separate. Nginx receives the public host port and proxies requests to the Django backend container.
+The workflows copy the same `docker-compose.yml` and Nginx config to separate directories under `/home/<EC2_USER>/book-shop/` and generate branch-specific `.env` files on the server. This keeps container names, networks, volumes, image versions, and host ports separate. Nginx receives the public host port and proxies requests to the Django backend container.
 
 ## GitHub Variables
 
