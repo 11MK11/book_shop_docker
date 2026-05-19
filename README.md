@@ -32,7 +32,7 @@ docker build --build-arg ARTIFACT_FILE=artifacts/app-local.tar.gz -t bookshop-ap
 Create `.env` from `.env.example`, then set `APP_IMAGE` to an image that already exists locally or in a registry.
 
 ```bash
-docker-compose -p bookshop-local up -d
+COMPOSE_PROJECT_NAME=bookshop-local docker compose up -d
 ```
 
 ## EC2 Coexistence Plan

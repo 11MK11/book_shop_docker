@@ -74,4 +74,4 @@ jobs:
             POSTGRES_USER=${{ vars.POSTGRES_USER || 'bookshop' }}
             POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
             EOF
-            docker-compose -p bookshop-test up -d
+            COMPOSE_PROJECT_NAME=bookshop-test docker compose up -d
