@@ -13,17 +13,19 @@ services:
       - bookshop_network
 
   backend:
-    build: .
+    image: ${REGISTRY_IMAGE}:${IMAGE_TAG}
     container_name: bookshop_backend
     restart: always
-    env_file:
-      - .env
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
     depends_on:
       - db
-    volumes:
-      - .:/app
     ports:
-      - "8000:8000"
+      - "${HOST_PORT:-8000}:8000"
     command: >
       sh -c "python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8000"
