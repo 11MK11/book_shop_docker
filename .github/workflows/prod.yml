@@ -1,24 +1,25 @@
 name: prod promotion deploy
-
 on:
   push:
     branches:
       - prod
-
 env:
-  IMAGE_REF: ${{ vars.REGISTRY_NAME }}/${{ vars.IMAGE_NAME }}:${{ vars.IMAGE_VERSION }}
   DEPLOY_DIR: /home/${{ vars.EC2_USER || 'ubuntu' }}/book-shop/prod
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: production
-
     steps:
       - name: Checkout prod
         uses: actions/checkout@v4
         with:
           ref: prod
+
+      - name: Set image ref
+        id: vars
+        run: |
+          IMAGE_VERSION=$(echo '${{ vars.IMAGE_VERSION }}' | tr -d '[:space:]')
+          echo "IMAGE_REF=${{ vars.REGISTRY_NAME }}/${{ vars.IMAGE_NAME }}:${IMAGE_VERSION}" >> $GITHUB_ENV
 
       - name: Copy compose file to EC2
         uses: appleboy/scp-action@v0.1.7
@@ -35,20 +36,20 @@ jobs:
           host: ${{ vars.EC2_HOST }}
           username: ${{ vars.EC2_USER || 'ubuntu' }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: IMAGE_REF
           script: |
             set -e
-            cd "${{ env.DEPLOY_DIR }}"
+            IMAGE_REF=$(echo "$IMAGE_REF" | tr -d '[:space:]')
+            cd "/home/ubuntu/book-shop/prod"
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-            docker pull "${{ env.IMAGE_REF }}"
-            cat > .env <<EOF
-            APP_IMAGE=${{ env.IMAGE_REF }}
-            APP_PORT=${{ vars.PROD_PORT || '8000' }}
-            SECRET_KEY=${{ secrets.SECRET_KEY }}
-            DEBUG=False
-            ALLOWED_HOSTS=${{ vars.ALLOWED_HOSTS || '*' }}
-            POSTGRES_DB=${{ vars.POSTGRES_DB || 'bookshop_prod' }}
-            POSTGRES_USER=${{ vars.POSTGRES_USER || 'bookshop' }}
-            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
-            EOF
+            docker pull "$IMAGE_REF"
+            printf "APP_IMAGE=%s\nAPP_PORT=%s\nSECRET_KEY=%s\nDEBUG=False\nALLOWED_HOSTS=%s\nPOSTGRES_DB=%s\nPOSTGRES_USER=%s\nPOSTGRES_PASSWORD=%s\n" \
+              "$IMAGE_REF" \
+              "${{ vars.PROD_PORT || '8000' }}" \
+              "${{ secrets.SECRET_KEY }}" \
+              "${{ vars.ALLOWED_HOSTS || '*' }}" \
+              "${{ vars.POSTGRES_DB || 'bookshop_prod' }}" \
+              "${{ vars.POSTGRES_USER || 'bookshop' }}" \
+              "${{ secrets.POSTGRES_PASSWORD }}" > .env
             docker compose -p bookshop-prod down --remove-orphans
             docker compose -p bookshop-prod up -d
