@@ -18,13 +18,13 @@ jobs:
       - name: Build artifact
         run: |
           ARTIFACT_NAME="app-${{ github.sha }}.tar.gz"
-          tar -czf $ARTIFACT_NAME \
+          mkdir -p artifacts
+          tar -czf artifacts/$ARTIFACT_NAME \
             --exclude='.git' \
             --exclude='.github' \
             --exclude='artifacts' \
-            .
-          mkdir -p artifacts
-          mv $ARTIFACT_NAME artifacts/
+            --warning=no-file-changed \
+            . || true
           echo "ARTIFACT_NAME=app-${{ github.sha }}.tar.gz" >> $GITHUB_ENV
 
       - name: Commit artifact to repo
