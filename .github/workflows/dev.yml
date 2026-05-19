@@ -83,4 +83,5 @@ jobs:
               sudo apt-get update
               sudo apt-get install -y docker-compose-plugin
             fi
-            COMPOSE_PROJECT_NAME=bookshop-dev docker compose up -d
+            docker compose -p bookshop-dev down --remove-orphans
+            docker compose -p bookshop-dev up -d

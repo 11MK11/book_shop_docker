@@ -78,4 +78,5 @@ jobs:
               sudo apt-get update
               sudo apt-get install -y docker-compose-plugin
             fi
-            COMPOSE_PROJECT_NAME=bookshop-test docker compose up -d
+            docker compose -p bookshop-test down --remove-orphans
+            docker compose -p bookshop-test up -d
