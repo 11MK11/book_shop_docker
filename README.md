@@ -18,7 +18,7 @@ The repository uses three deployment branches:
 
 ## Artifact Image Build
 
-`Dockerfile` is intentionally artifact-based. It receives `ARTIFACT_FILE` as a build argument, copies only that archive into the image, extracts it, and installs dependencies from the wheel files inside the artifact.
+`Dockerfile` is artifact-based. It receives `ARTIFACT_FILE` as a build argument, copies only that archive into the image, extracts it, and installs dependencies from the wheel files inside the artifact.
 
 Create a local artifact and image with:
 
