@@ -1,0 +1,97 @@
+name: test — Image-First Pipeline
+
+on:
+  push:
+    branches:
+      - test
+
+jobs:
+  build-push-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Set up Python & rebuild artifact FROM SOURCE ───────────────────
+      #    We do NOT touch anything in artifacts/ — we rebuild completely.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Freeze dependencies
+        run: pip freeze > requirements.frozen.txt
+
+      - name: Package fresh artifact
+        run: |
+          ARTIFACT_NAME="app-test-${{ github.sha }}.tar.gz"
+          # Put the artifact inside artifacts/ so the Dockerfile can COPY it
+          mkdir -p artifacts
+          tar -czf "artifacts/${ARTIFACT_NAME}" \
+            --exclude='.git' \
+            --exclude='__pycache__' \
+            --exclude='*.pyc' \
+            --exclude='.env' \
+            --exclude='artifacts' \
+            .
+          echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> $GITHUB_ENV
+
+      # ── 3. Log in to Docker Hub ────────────────────────────────────────────
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # ── 4. Build image from the fresh artifact and push to Docker Hub ──────
+      #    Person A's Dockerfile COPYs artifacts/<name>.tar.gz and extracts it.
+      #    No pip install from source happens inside the image.
+      - name: Build and push image to Docker Hub
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          build-args: |
+            ARTIFACT_NAME=${{ env.ARTIFACT_NAME }}
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.IMAGE_NAME }}:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.IMAGE_NAME }}:test-latest
+
+      # ── 5. Deploy to EC2 — pull from Docker Hub, zero build on server ──────
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/book_shop
+
+            # Write env file for the test stack
+            cat > .env.test << EOF
+            POSTGRES_DB=bookshop_test
+            POSTGRES_USER=bookshop_user
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+            ALLOWED_HOSTS=${{ vars.EC2_HOST }},localhost,127.0.0.1
+            REGISTRY_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.IMAGE_NAME }}
+            IMAGE_TAG=${{ github.sha }}
+            HOST_PORT=8002
+            EOF
+
+            docker compose -p test -f docker-compose.yml \
+              --env-file .env.test pull
+
+            docker compose -p test -f docker-compose.yml \
+              --env-file .env.test down --remove-orphans
+
+            docker compose -p test -f docker-compose.yml \
+              --env-file .env.test up -d

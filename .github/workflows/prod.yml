@@ -1,0 +1,66 @@
+name: prod — Promotion-Only Pipeline
+
+on:
+  push:
+    branches:
+      - prod
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    # ── BONUS: uncomment the two lines below and configure an environment
+    #    named "production" with required reviewers in repo Settings → Environments
+    #    to add a manual approval gate before every prod deploy.
+    # environment:
+    #   name: production
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Log in to Docker Hub ────────────────────────────────────────────
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # ── 3. Deploy to EC2 ───────────────────────────────────────────────────
+      #    - Reads the version from vars.IMAGE_VERSION (repo variable set in
+      #      Settings → Secrets and variables → Actions → Variables).
+      #    - Pulls ONLY that tagged image from Docker Hub.
+      #    - NO docker build, NO docker buildx, NO tagging here.
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/book_shop
+
+            # Write env file for the prod stack
+            # IMAGE_VERSION comes from the repo variable — the single source of truth
+            cat > .env.prod << EOF
+            POSTGRES_DB=bookshop_prod
+            POSTGRES_USER=bookshop_user
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+            ALLOWED_HOSTS=${{ vars.EC2_HOST }},localhost,127.0.0.1
+            REGISTRY_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.IMAGE_NAME }}
+            IMAGE_TAG=${{ vars.IMAGE_VERSION }}
+            HOST_PORT=8000
+            EOF
+
+            # Pull the exact promoted version — nothing is built here
+            docker compose -p prod -f docker-compose.yml \
+              --env-file .env.prod pull
+
+            docker compose -p prod -f docker-compose.yml \
+              --env-file .env.prod down --remove-orphans
+
+            docker compose -p prod -f docker-compose.yml \
+              --env-file .env.prod up -d
