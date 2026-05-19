@@ -79,4 +79,8 @@ jobs:
             POSTGRES_USER=${{ vars.POSTGRES_USER || 'bookshop' }}
             POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
             EOF
+            if ! docker compose version >/dev/null 2>&1; then
+              sudo apt-get update
+              sudo apt-get install -y docker-compose-plugin
+            fi
             COMPOSE_PROJECT_NAME=bookshop-dev docker compose up -d
