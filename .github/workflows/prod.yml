@@ -1,24 +1,25 @@
 name: prod promotion deploy
-
 on:
   push:
     branches:
       - prod
-
 env:
-  IMAGE_REF: ${{ vars.REGISTRY_NAME }}/${{ vars.IMAGE_NAME }}:${{ trim(vars.IMAGE_VERSION) }}
   DEPLOY_DIR: /home/${{ vars.EC2_USER || 'ubuntu' }}/book-shop/prod
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: production
-
     steps:
       - name: Checkout prod
         uses: actions/checkout@v4
         with:
           ref: prod
+
+      - name: Set image ref
+        id: vars
+        run: |
+          IMAGE_VERSION=$(echo '${{ vars.IMAGE_VERSION }}' | tr -d '[:space:]')
+          echo "IMAGE_REF=${{ vars.REGISTRY_NAME }}/${{ vars.IMAGE_NAME }}:${IMAGE_VERSION}" >> $GITHUB_ENV
 
       - name: Copy compose file to EC2
         uses: appleboy/scp-action@v0.1.7
