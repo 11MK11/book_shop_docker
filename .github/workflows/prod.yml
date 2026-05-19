@@ -6,7 +6,7 @@ on:
       - prod
 
 env:
-  IMAGE_REF: ${{ vars.REGISTRY_NAME }}/${{ vars.IMAGE_NAME }}:${{ vars.IMAGE_VERSION }}
+  IMAGE_REF: ${{ vars.REGISTRY_NAME }}/${{ vars.IMAGE_NAME }}:${{ trim(vars.IMAGE_VERSION) }}
   DEPLOY_DIR: /home/${{ vars.EC2_USER || 'ubuntu' }}/book-shop/prod
 
 jobs:
